@@ -22,9 +22,6 @@ genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
 class GoogleGenerativeAIWrapper:
     """Wrapper para Google Generative AI con manejo de múltiples API keys"""
 
-    # ✅ Variable de clase compartida entre TODAS las instancias
-    _shared_usage = None
-
     def __init__(self, temperature: float = 0.1, max_output_tokens: int = 1024):
         """
         Inicializar wrapper de Google Generative AI
@@ -38,11 +35,6 @@ class GoogleGenerativeAIWrapper:
         self._last_usage = None  # Almacenar info de tokens del último llamado
 
         # La configuración global de la API key se realiza arriba leyendo GENAI_API_KEY_1 desde .env
-
-    def get_last_usage(self) -> Optional[dict]:
-        """Obtener información de tokens del último llamado (de cualquier instancia)"""
-        # ✅ Retornar usage compartido entre todas las instancias
-        return GoogleGenerativeAIWrapper._shared_usage
 
     @property
     def _llm_type(self) -> str:
@@ -71,39 +63,6 @@ class GoogleGenerativeAIWrapper:
 
             # Realizar la llamada
             response = model.generate_content(prompt)
-
-            # Extraer información de tokens directamente de la respuesta
-            usage_metadata = None
-            if hasattr(response, 'usage_metadata'):
-                usage_metadata = {
-                    'prompt_tokens': response.usage_metadata.prompt_token_count,
-                    'completion_tokens': response.usage_metadata.candidates_token_count,
-                    'total_tokens': response.usage_metadata.total_token_count
-                }
-
-            # Verificar si hay contenido válido
-            if hasattr(response, 'text') and response.text:
-                # Almacenar metadata en instancia Y en variable compartida
-                self._last_usage = usage_metadata
-                GoogleGenerativeAIWrapper._shared_usage = usage_metadata
-                return response.text
-            elif hasattr(response, 'candidates') and response.candidates:
-                candidate = response.candidates[0]
-                if hasattr(candidate, 'content') and candidate.content.parts:
-                    # Almacenar metadata en instancia Y en variable compartida
-                    self._last_usage = usage_metadata
-                    GoogleGenerativeAIWrapper._shared_usage = usage_metadata
-                    return candidate.content.parts[0].text
-
-            # Verificar finish_reason si no hay contenido
-            if hasattr(response, 'candidates') and response.candidates:
-                finish_reason = response.candidates[0].finish_reason
-                if finish_reason == 2:  # SAFETY
-                    return "El contenido fue filtrado por políticas de seguridad."
-                elif finish_reason == 3:  # RECITATION
-                    return "El contenido fue filtrado por derechos de autor."
-                elif finish_reason == 4:  # OTHER
-                    return "El contenido fue filtrado por otras razones."
 
             # Si no hay texto válido, considerar como error
             raise Exception("Respuesta sin contenido válido")

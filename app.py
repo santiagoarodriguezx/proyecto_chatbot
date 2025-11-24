@@ -10,6 +10,7 @@ from typing import Dict, Any
 import logging
 import sys
 import os
+from send_message import process_message_upsert
 
 # Agregar el directorio raíz al path para importar los modelos
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -38,54 +39,6 @@ stats = {
     "start_time": datetime.now().isoformat()
 }
 
-
-def process_message_upsert(webhook: EvolutionWebhook) -> Dict[str, Any]:
-    """Procesar mensaje nuevo y responder con IA"""
-    try:
-        # Extraer datos del webhook validado
-        message_data = webhook.data
-        key = message_data.get("key", {})
-        message = message_data.get("message", {})
-
-        # Verificar que no sea mensaje del bot
-        if key.get("fromMe"):
-            logger.info("⏭️ Mensaje del bot, ignorando")
-            return {"action": "ignored", "reason": "own_message"}
-
-        # Obtener número del remitente
-        remote_jid = key.get("remoteJid", "")
-        if not remote_jid:
-            return {"action": "error", "reason": "missing_remote_jid"}
-            
-        from_number = remote_jid.replace("@s.whatsapp.net", "")
-
-        # Obtener texto del mensaje
-        message_text = (
-            message.get("conversation") or
-            message.get("extendedTextMessage", {}).get("text") or
-            ""
-        )
-
-        if not message_text:
-            return {"action": "skipped", "reason": "no_message_text"}
-            
-        if not from_number:
-            return {"action": "skipped", "reason": "no_phone_number"}
-
-        logger.info(f"💬 Procesando mensaje de {from_number}: {message_text[:50]}...")
-        message_processor.process_and_reply(message_text, from_number)
-        stats["messages_processed"] += 1
-        
-        return {
-            "action": "processed",
-            "from": from_number,
-            "message_preview": message_text[:100]
-        }
-
-    except Exception as e:
-        logger.error(f"❌ Error procesando mensaje: {str(e)}")
-        stats["errors"] += 1
-        raise
 
 
 
@@ -212,8 +165,6 @@ async def send_message_event(request: Request):
     }
 
 
-
-
 @app.get("/")
 def root():
     """Endpoint raíz - Información del bot"""
@@ -248,8 +199,6 @@ def get_stats():
         "statistics": stats,
         "timestamp": datetime.now().isoformat()
     }
-
-
 
 
 if __name__ == "__main__":
