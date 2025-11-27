@@ -1,16 +1,17 @@
 from message_processor import message_processor
-from src.api.models.models import EvolutionWebhook, MessageResponse
+from src.api.models.models import EvolutionWebhook
 from typing import Dict, Any
 import logging
-from app import stats
 
 
-# Configurar logging
+# Configurar logging local
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
 def process_message_upsert(webhook: EvolutionWebhook) -> Dict[str, Any]:
     """Procesar mensaje nuevo y responder con IA"""
     try:
@@ -25,7 +26,7 @@ def process_message_upsert(webhook: EvolutionWebhook) -> Dict[str, Any]:
         remote_jid = key.get("remoteJid", "")
         if not remote_jid:
             return {"action": "error", "reason": "missing_remote_jid"}
-            
+
         from_number = remote_jid.replace("@s.whatsapp.net", "")
 
         # Obtener texto del mensaje
@@ -37,14 +38,14 @@ def process_message_upsert(webhook: EvolutionWebhook) -> Dict[str, Any]:
 
         if not message_text:
             return {"action": "skipped", "reason": "no_message_text"}
-            
+
         if not from_number:
             return {"action": "skipped", "reason": "no_phone_number"}
 
-        logger.info(f"💬 Procesando mensaje de {from_number}: {message_text[:50]}...")
+        logger.info(
+            f"💬 Procesando mensaje de {from_number}: {message_text[:50]}...")
         message_processor.process_and_reply(message_text, from_number)
-        stats["messages_processed"] += 1
-        
+
         return {
             "action": "processed",
             "from": from_number,
@@ -53,5 +54,4 @@ def process_message_upsert(webhook: EvolutionWebhook) -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"❌ Error procesando mensaje: {str(e)}")
-        stats["errors"] += 1
         raise

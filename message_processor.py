@@ -17,7 +17,7 @@ class MessageProcessor:
     def __init__(self):
         """Inicializar el procesador de mensajes"""
         self.ai = ai_service
-        self.evolution_url = os.getenv("EVOLUTION_API_URL").rstrip('/')
+        self.evolution_url = os.getenv("EVOLUTION_API_URL")
         self.api_key = os.getenv("EVOLUTION_API_KEY")
         self.instance = os.getenv("EVOLUTION_INSTANCE", "ia-whatsapp")
 

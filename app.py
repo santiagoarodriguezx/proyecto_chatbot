@@ -3,6 +3,9 @@ API Profesional para Evolution WhatsApp Bot
 Maneja todos los eventos de Evolution API con logging y validación
 """
 
+from ai_service import ai_service
+from src.api.models.models import EvolutionWebhook, MessageResponse, SendMessageRequest
+from message_processor import message_processor
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from datetime import datetime
@@ -15,8 +18,6 @@ from send_message import process_message_upsert
 # Agregar el directorio raíz al path para importar los modelos
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from message_processor import message_processor
-from src.api.models.models import EvolutionWebhook, MessageResponse
 
 # Configurar logging
 logging.basicConfig(
@@ -38,8 +39,6 @@ stats = {
     "errors": 0,
     "start_time": datetime.now().isoformat()
 }
-
-
 
 
 @app.post("/chats-update")
@@ -98,14 +97,14 @@ async def messages_update(request: Request):
 async def messages_upsert(webhook: EvolutionWebhook):
     """
     Evento: Mensaje nuevo - SE PROCESA CON IA
-    
+
     Recibe un webhook de Evolution API con la estructura:
     - event: Tipo de evento (messages.upsert)
     - instance: Nombre de la instancia
     - data: Datos del mensaje que incluyen:
         - key: Información de la clave (remoteJid, fromMe)
         - message: Contenido del mensaje (conversation o extendedTextMessage)
-    
+
     Este endpoint VALIDA que reciba:
     - Un número de teléfono válido (remoteJid)
     - Un texto de mensaje (conversation o extendedTextMessage.text)
@@ -113,23 +112,23 @@ async def messages_upsert(webhook: EvolutionWebhook):
     try:
         stats["total_events"] += 1
         logger.info(f"✉️ Message upserted from instance: {webhook.instance}")
-        
+
         # Validar que tenga los campos mínimos requeridos
         if not webhook.data.get("key"):
             raise HTTPException(
                 status_code=400,
                 detail="Missing 'key' in data. Required: key.remoteJid"
             )
-        
+
         if not webhook.data.get("message"):
             raise HTTPException(
                 status_code=400,
                 detail="Missing 'message' in data. Required: message.conversation or message.extendedTextMessage.text"
             )
-        
+
         # Procesar el mensaje con IA
         result = process_message_upsert(webhook)
-        
+
         return MessageResponse(
             success=True,
             message="Mensaje procesado correctamente",
@@ -140,7 +139,7 @@ async def messages_upsert(webhook: EvolutionWebhook):
                 "processing": result
             }
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -163,6 +162,42 @@ async def send_message_event(request: Request):
         "event": "send-message",
         "timestamp": datetime.now().isoformat()
     }
+
+
+@app.post("/process-message", response_model=MessageResponse)
+async def process_message_anywhere(payload: SendMessageRequest):
+    """Recibe un mensaje desde cualquier cliente (Postman, otro servicio, etc.), lo procesa con la IA y devuelve la respuesta.
+
+    Requiere al menos un número y un texto (en `numero`/`phone` y `texto`/`message`).
+    """
+    phone = payload.get_phone()
+    text = payload.get_message()
+
+    if not phone:
+        raise HTTPException(
+            status_code=400, detail="Missing phone number (numero or phone)")
+    if not text:
+        raise HTTPException(
+            status_code=400, detail="Missing message text (texto or message)")
+
+    try:
+        # Prompt simple y consistente
+        prompt = f"Eres un asistente útil y conciso. Usuario ({phone}): {text}\n\nAsistente:"
+        ai_response = ai_service.generate_response(prompt)
+
+        # Responder con el formato estándar
+        return MessageResponse(
+            success=True,
+            message="OK",
+            data={
+                "to": phone,
+                "request_preview": text[:160],
+                "response": ai_response
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error procesando /process-message: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/")
