@@ -2,6 +2,14 @@ from message_processor import message_processor
 from src.api.models.models import EvolutionWebhook
 from typing import Dict, Any
 import logging
+from datetime import datetime
+
+# Import opcional del cliente Supabase. Si la dependencia o el archivo no existen,
+# dejamos `insert_row` como None para no romper la aplicación.
+try:
+    from supabase_client import insert_row
+except Exception:
+    insert_row = None
 
 
 # Configurar logging local
@@ -44,6 +52,19 @@ def process_message_upsert(webhook: EvolutionWebhook) -> Dict[str, Any]:
 
         logger.info(
             f"💬 Procesando mensaje de {from_number}: {message_text[:50]}...")
+
+        # Guardar en la tabla `message_logs` si el cliente Supabase está disponible
+        if insert_row:
+            try:
+                payload = {
+                    "user_id": from_number,
+                    "role": "user",
+                    "message": message_text
+                }
+                insert_row("message_logs", payload)
+            except Exception as e:
+                logger.warning(f"No se pudo guardar mensaje en Supabase: {e}")
+
         message_processor.process_and_reply(message_text, from_number)
 
         return {

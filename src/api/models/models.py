@@ -91,3 +91,17 @@ class EvolutionWebhook(BaseModel):
                 }
             }
         }
+
+
+class PromptRequest(BaseModel):
+    """Modelo para crear y almacenar prompts en Supabase."""
+    name: str = Field(..., description="Nombre único del prompt")
+    content: str = Field(..., description="Contenido completo del prompt")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "name": "system_welcome",
+                "content": "Eres un asistente cortés que responde en español."
+            }
+        }
