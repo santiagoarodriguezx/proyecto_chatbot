@@ -198,17 +198,29 @@ async def process_message_anywhere(payload: SendMessageRequest):
         # Guardar la interacción en la tabla `message_logs` si está disponible
         if insert_row:
             try:
+                # Guardar mensaje del usuario
                 insert_result = insert_row("message_logs", {
-                    "user_id": phone,
-                    "role": "user",
-                    "message": text
+                    "phone_number": phone,
+                    "message_text": text,
+                    "direction": "incoming",
+                    "status": "received"
                 })
                 logger.info(
                     "Supabase insert ok (status=%s)",
-                    insert_result.get("status_code") if isinstance(insert_result, dict) else "unknown"
+                    insert_result.get("status_code") if isinstance(
+                        insert_result, dict) else "unknown"
                 )
+
+                # Guardar respuesta de la IA
+                insert_row("message_logs", {
+                    "phone_number": phone,
+                    "message_text": ai_response,
+                    "direction": "outgoing",
+                    "status": "sent"
+                })
             except Exception as db_error:
-                logger.warning(f"No se pudo guardar la interacción en Supabase: {db_error}")
+                logger.warning(
+                    f"No se pudo guardar la interacción en Supabase: {db_error}")
 
         # Responder con el formato estándar
         return MessageResponse(
@@ -225,34 +237,18 @@ async def process_message_anywhere(payload: SendMessageRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/debug/message-logs")
-def debug_message_logs(limit: int = 20):
-    """Endpoint de diagnóstico para revisar los últimos registros guardados en Supabase."""
-    if not fetch_recent_messages:
-        raise HTTPException(status_code=503, detail="Supabase no está configurado")
-
-    try:
-        registros = fetch_recent_messages(limit)
-        return {
-            "count": len(registros),
-            "limit": limit,
-            "data": registros
-        }
-    except Exception as e:
-        logger.error(f"Error consultando message_logs: {e}")
-        raise HTTPException(status_code=500, detail="No se pudo consultar message_logs")
-
-
 @app.post("/prompts", response_model=MessageResponse)
 async def create_prompt(prompt: PromptRequest):
     """Crear un prompt y almacenarlo en Supabase (tabla prompts)."""
     if not insert_row:
-        raise HTTPException(status_code=503, detail="Supabase no está configurado")
+        raise HTTPException(
+            status_code=503, detail="Supabase no está configurado")
 
     try:
         payload = prompt.model_dump()
         insert_result = insert_row("prompts", payload)
-        stored_data = insert_result.get("data") if isinstance(insert_result, dict) else None
+        stored_data = insert_result.get("data") if isinstance(
+            insert_result, dict) else None
         return MessageResponse(
             success=True,
             message="Prompt guardado correctamente",
@@ -262,14 +258,16 @@ async def create_prompt(prompt: PromptRequest):
         )
     except Exception as e:
         logger.error(f"Error guardando prompt: {e}")
-        raise HTTPException(status_code=500, detail="No se pudo guardar el prompt")
+        raise HTTPException(
+            status_code=500, detail="No se pudo guardar el prompt")
 
 
 @app.get("/prompts", response_model=MessageResponse)
 def list_prompts(limit: int = 20):
     """Listar los prompts almacenados en Supabase."""
     if not fetch_prompts:
-        raise HTTPException(status_code=503, detail="Supabase no está configurado")
+        raise HTTPException(
+            status_code=503, detail="Supabase no está configurado")
 
     try:
         data = fetch_prompts(limit)
@@ -283,7 +281,8 @@ def list_prompts(limit: int = 20):
         )
     except Exception as e:
         logger.error(f"Error listando prompts: {e}")
-        raise HTTPException(status_code=500, detail="No se pudieron obtener los prompts")
+        raise HTTPException(
+            status_code=500, detail="No se pudieron obtener los prompts")
 
 
 @app.get("/")

@@ -22,7 +22,8 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 try:
     from supabase import create_client
 except Exception as e:
-    raise RuntimeError("Instala la dependencia 'supabase' (pip install supabase)") from e
+    raise RuntimeError(
+        "Instala la dependencia 'supabase' (pip install supabase)") from e
 
 _client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -68,3 +69,16 @@ def fetch_prompts(limit: int = 50) -> List[Dict[str, Any]]:
     )
     return getattr(res, "data", res)
 
+
+def fetch_prompt_by_name(name: str) -> Dict[str, Any]:
+    """Obtiene un prompt específico por su nombre."""
+    res = (
+        _client
+        .table("prompts")
+        .select("*")
+        .eq("name", name)
+        .limit(1)
+        .execute()
+    )
+    data = getattr(res, "data", [])
+    return data[0] if data else None

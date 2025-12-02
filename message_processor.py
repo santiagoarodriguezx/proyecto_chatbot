@@ -8,6 +8,12 @@ import os
 from dotenv import load_dotenv
 from ai_service import ai_service
 
+try:
+    from supabase_client import fetch_prompt_by_name, insert_row
+except Exception:
+    fetch_prompt_by_name = None
+    insert_row = None
+
 load_dotenv()
 
 
@@ -20,6 +26,26 @@ class MessageProcessor:
         self.evolution_url = os.getenv("EVOLUTION_API_URL")
         self.api_key = os.getenv("EVOLUTION_API_KEY")
         self.instance = os.getenv("EVOLUTION_INSTANCE", "ia-whatsapp")
+        self.system_prompt = self._load_system_prompt()
+
+    def _load_system_prompt(self) -> str:
+        """Cargar el prompt system_welcome desde Supabase"""
+        if not fetch_prompt_by_name:
+            print("⚠️ Supabase no disponible, usando prompt por defecto")
+            return "Eres un asistente virtual amigable y útil."
+
+        try:
+            prompt_data = fetch_prompt_by_name("system_welcome")
+            if prompt_data and "content" in prompt_data:
+                print(f"✅ Prompt 'system_welcome' cargado desde Supabase")
+                return prompt_data["content"]
+            else:
+                print(
+                    "⚠️ Prompt 'system_welcome' no encontrado en Supabase, usando prompt por defecto")
+                return "Eres un asistente virtual amigable y útil."
+        except Exception as e:
+            print(f"❌ Error cargando prompt desde Supabase: {str(e)}")
+            return "Eres un asistente virtual amigable y útil."
 
     def process_and_reply(self, message_text: str, from_number: str):
         """
@@ -32,8 +58,8 @@ class MessageProcessor:
         try:
             print(f"📨 Mensaje de {from_number}: {message_text}")
 
-            # Generar respuesta con IA
-            prompt = f"""Eres un asistente virtual amigable y útil.
+            # Generar respuesta con IA usando el prompt de Supabase
+            prompt = f"""{self.system_prompt}
 
 Usuario: {message_text}
 
@@ -41,6 +67,18 @@ Asistente:"""
 
             response = self.ai.generate_response(prompt)
             print(f"🤖 Respuesta: {response[:100]}...")
+
+            # Guardar respuesta en message_logs
+            if insert_row:
+                try:
+                    insert_row("message_logs", {
+                        "phone_number": from_number,
+                        "message_text": response,
+                        "direction": "outgoing",
+                        "status": "sent"
+                    })
+                except Exception as e:
+                    print(f"⚠️ No se pudo guardar respuesta en Supabase: {e}")
 
             # Enviar respuesta a Evolution
             self.send_to_evolution(from_number, response)

@@ -57,9 +57,10 @@ def process_message_upsert(webhook: EvolutionWebhook) -> Dict[str, Any]:
         if insert_row:
             try:
                 payload = {
-                    "user_id": from_number,
-                    "role": "user",
-                    "message": message_text
+                    "phone_number": from_number,
+                    "message_text": message_text,
+                    "direction": "incoming",
+                    "status": "received"
                 }
                 insert_row("message_logs", payload)
             except Exception as e:

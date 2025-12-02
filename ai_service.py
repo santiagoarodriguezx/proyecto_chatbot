@@ -54,7 +54,7 @@ class GoogleGenerativeAIWrapper:
         try:
             # Crear el modelo
             model = genai.GenerativeModel(
-                "gemini-2.5-flash-lite",
+                "gemini-flash-lite-latest",
                 generation_config=genai.types.GenerationConfig(
                     temperature=self.temperature,
                     max_output_tokens=self.max_output_tokens,
@@ -64,8 +64,11 @@ class GoogleGenerativeAIWrapper:
             # Realizar la llamada
             response = model.generate_content(prompt)
 
-            # Si no hay texto válido, considerar como error
-            raise Exception("Respuesta sin contenido válido")
+            # Verificar si hay contenido válido en la respuesta
+            if not response or not response.text:
+                raise Exception("Respuesta sin contenido válido")
+
+            return response.text
 
         except Exception as e:
             logger.error(f"Error al generar respuesta: {str(e)}")
