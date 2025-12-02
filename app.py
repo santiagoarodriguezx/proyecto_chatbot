@@ -3,9 +3,7 @@ API Profesional para Evolution WhatsApp Bot
 Maneja todos los eventos de Evolution API con logging y validación
 """
 
-from ai_service import ai_service
 from src.api.models.models import EvolutionWebhook, MessageResponse, SendMessageRequest, PromptRequest
-from message_processor import message_processor
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from datetime import datetime
@@ -191,9 +189,11 @@ async def process_message_anywhere(payload: SendMessageRequest):
             status_code=400, detail="Missing message text (texto or message)")
 
     try:
-        # Prompt simple y consistente
-        prompt = f"Eres un asistente útil y conciso. Usuario ({phone}): {text}\n\nAsistente:"
-        ai_response = ai_service.generate_response(prompt)
+        # Usar el procesador con LangChain
+        from message_processor import message_processor
+
+        # Generar respuesta usando la cadena con memoria
+        ai_response = message_processor.conversation.predict(input=text)
 
         # Guardar la interacción en la tabla `message_logs` si está disponible
         if insert_row:

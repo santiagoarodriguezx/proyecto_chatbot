@@ -4,3 +4,7 @@ python-dotenv
 google-generativeai
 requests
 supabase
+langchain
+langchain-google-genai
+langgraph
+pydantic
