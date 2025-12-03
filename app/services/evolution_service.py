@@ -3,12 +3,10 @@ Evolution API Service - Servicio para interactuar con Evolution API
 Maneja el envio de mensajes via WhatsApp
 """
 
-import os
 import requests
-from dotenv import load_dotenv
 from typing import Optional, Dict, Any
 
-load_dotenv()
+from app.config.config import settings
 
 
 class EvolutionService:
@@ -16,9 +14,9 @@ class EvolutionService:
 
     def __init__(self):
         """Inicializar servicio de Evolution API"""
-        self.evolution_url = os.getenv("EVOLUTION_API_URL")
-        self.api_key = os.getenv("EVOLUTION_API_KEY")
-        self.instance = os.getenv("EVOLUTION_INSTANCE", "ia-whatsapp")
+        self.evolution_url = settings.evolution_api_url
+        self.api_key = settings.evolution_api_key
+        self.instance = settings.evolution_instance
 
     def is_available(self) -> bool:
         """Verificar si Evolution API esta configurada"""

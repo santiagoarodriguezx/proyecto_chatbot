@@ -3,10 +3,6 @@ IA Service - Servicio de Inteligencia Artificial con LangChain
 Maneja la lógica de LangChain, agentes, memoria y herramientas
 """
 
-import os
-from dotenv import load_dotenv
-from typing import Optional
-
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain.memory import ConversationBufferWindowMemory
@@ -16,8 +12,7 @@ from langchain_community.utilities import GoogleSerperAPIWrapper
 
 # Importar despues de las otras importaciones para evitar import circular
 from app.services.supabase_service import supabase_service
-
-load_dotenv()
+from app.config.config import settings
 
 
 class IAService:
@@ -27,14 +22,14 @@ class IAService:
         """Inicializar servicio de IA con LangChain"""
         # Inicializar modelo de Google AI
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-flash-lite-latest",
-            temperature=1.0,
-            google_api_key=os.getenv("GOOGLE_API_KEY")
+            model=settings.gemini_model,
+            temperature=settings.gemini_temperature,
+            google_api_key=settings.google_api_key
         )
 
         # Memoria que guarda ultimas 10 interacciones
         self.memory = ConversationBufferWindowMemory(
-            k=10,
+            k=settings.memory_window_size,
             return_messages=True,
             memory_key="chat_history"
         )
@@ -84,7 +79,7 @@ Se conciso, amigable y profesional en tus respuestas."""
         tools = []
 
         # Herramienta de busqueda en Google (usando Serper API)
-        serper_api_key = os.getenv("SERPER_API_KEY")
+        serper_api_key = settings.serper_api_key
         if serper_api_key:
             try:
                 search = GoogleSerperAPIWrapper(serper_api_key=serper_api_key)
@@ -117,9 +112,9 @@ Se conciso, amigable y profesional en tus respuestas."""
             agent=agent,
             tools=self.tools,
             memory=self.memory,
-            verbose=True,
+            verbose=settings.agent_verbose,
             handle_parsing_errors=True,
-            max_iterations=3
+            max_iterations=settings.agent_max_iterations
         )
 
     def generate_response(self, message: str) -> str:

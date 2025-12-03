@@ -4,15 +4,12 @@ Cliente mínimo para Supabase usando `supabase` (supabase-py).
 Provee `insert_row` y funciones utilitarias para `message_logs` y `prompts`.
 Requiere las variables de entorno `SUPABASE_URL` y `SUPABASE_KEY`.
 """
-from dotenv import load_dotenv
-import os
 from typing import Any, Dict, List
 
-load_dotenv()
+from app.config.config import settings
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-SUPABASE_KEY = SUPABASE_SERVICE_ROLE_KEY or os.getenv("SUPABASE_KEY")
+SUPABASE_URL = settings.supabase_url
+SUPABASE_KEY = settings.supabase_key_final
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise RuntimeError(

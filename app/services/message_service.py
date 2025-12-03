@@ -3,16 +3,11 @@ Message Processor con LangChain, Memoria y Busqueda en Google
 Procesador que usa ConversationChain con herramientas de busqueda
 """
 
-import os
 import time
-from dotenv import load_dotenv
-from typing import Optional
 
 from app.core.ia_service import ia_service
 from app.services.supabase_service import supabase_service
 from app.services.evolution_service import evolution_service
-
-load_dotenv()
 
 
 class MessageProcessor:
