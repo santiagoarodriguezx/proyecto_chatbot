@@ -3,16 +3,14 @@ Supabase Service - Servicio para interactuar con Supabase
 Maneja conversaciones, mensajes, respuestas de IA y prompts
 """
 
-import os
 from datetime import datetime
 from typing import Optional, Dict, Any, List
-from dotenv import load_dotenv
 
-load_dotenv()
+from app.config.config import settings
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-SUPABASE_KEY = SUPABASE_SERVICE_ROLE_KEY or os.getenv("SUPABASE_KEY")
+
+SUPABASE_URL = settings.supabase_url
+SUPABASE_KEY = settings.supabase_key_final
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     print("⚠️ Variables de Supabase no configuradas")

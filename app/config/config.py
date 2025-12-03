@@ -35,8 +35,8 @@ class Settings(BaseSettings):
 
     # Google AI
     google_api_key: str
-    gemini_model: str = "gemini-lite-latest"
-    gemini_temperature: float = 0.7
+    gemini_model: str = "gemini-flash-lite-latest"
+    gemini_temperature: float = 1.0
 
     # Serper (Google Search)
     serper_api_key: str | None = None
