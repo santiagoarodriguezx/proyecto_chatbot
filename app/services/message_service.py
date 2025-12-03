@@ -29,8 +29,8 @@ class MessageProcessor:
 
         # Inicializar modelo de Google AI
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-flash-lite-lates",
-            temperature=0.7,
+            model="gemini-flash-lite-latest",
+            temperature=1.0,
             google_api_key=os.getenv("GOOGLE_API_KEY")
         )
 
@@ -51,17 +51,11 @@ class MessageProcessor:
         self.agent = self._create_agent()
 
     def _load_system_prompt(self) -> str:
-        """Cargar prompt desde Supabase o usar default"""
-        try:
-            from supabase_client import fetch_prompt_by_name
-            prompt_data = fetch_prompt_by_name("system_welcome")
-            if prompt_data and "content" in prompt_data:
-                print("✅ Prompt cargado desde Supabase")
-                return prompt_data["content"]
-        except Exception as e:
-            print(f"⚠️ No se pudo cargar prompt: {e}")
-
-        return
+        """Cargar prompt del sistema"""
+        return """Eres un asistente virtual inteligente y servicial. 
+Tu objetivo es ayudar a los usuarios de la mejor manera posible.
+Cuando necesites información actualizada o datos que no conoces, usa la herramienta de búsqueda de Google o de weather para climas.
+Sé conciso, amigable y profesional en tus respuestas."""
 
     def _create_tools(self) -> list:
         """Crear herramientas disponibles para el agente"""
@@ -77,7 +71,13 @@ class MessageProcessor:
                     description="Busca información actual en Google. Útil para responder preguntas sobre eventos recientes, noticias, datos actualizados o información que no conoces.",
                     func=search.run
                 )
-                tools.append(google_tool)
+                weather_tool = Tool(
+                    name="weather",
+                    description="Consulta el clima actual de cualquier ciudad. Útil para saber temperatura, humedad y condiciones meteorológicas.",
+                    func=get_weather
+                )
+
+                tools.append(google_tool, weather_tool)
                 print("✅ Herramienta de búsqueda Google activada")
             except Exception as e:
                 print(f"⚠️ No se pudo activar búsqueda Google: {e}")
@@ -136,18 +136,10 @@ class MessageProcessor:
             error_msg = "Lo siento, hubo un error procesando tu mensaje."
             self.send_to_evolution(from_number, error_msg)
 
-    def _save_to_supabase(self, phone_number: str, response: str) -> None:
-        """Guardar respuesta en Supabase"""
-        try:
-            from supabase_client import insert_row
-            insert_row("message_logs", {
-                "phone_number": phone_number,
-                "message_text": response,
-                "direction": "outgoing",
-                "status": "sent"
-            })
-        except Exception as e:
-            print(f"⚠️ No se pudo guardar en Supabase: {e}")
+    def _save_to_supabase(self, from_number: str, response: str) -> None:
+        """Guardar mensaje en Supabase (implementación futura)"""
+        # TODO: Implementar guardado en Supabase
+        pass
 
     def send_to_evolution(self, number: str, text: str) -> None:
         """Enviar mensaje a Evolution API"""
@@ -172,6 +164,26 @@ class MessageProcessor:
 
         except Exception as e:
             print(f"❌ Error enviando a Evolution: {str(e)}")
+
+
+def get_weather(city: str) -> str:
+    api_key = os.getenv("OPENWEATHER_API_KEY")
+    if not api_key:
+        return "⚠️ API key de OpenWeatherMap no encontrada."
+
+    url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric&lang=es"
+    try:
+        response = requests.get(url)
+        data = response.json()
+        if data.get("cod") != 200:
+            return f"⚠️ No se pudo encontrar el clima para {city}."
+
+        weather = data["weather"][0]["description"]
+        temp = data["main"]["temp"]
+        humidity = data["main"]["humidity"]
+        return f"El clima en {city} es {weather} con {temp}°C y humedad de {humidity}%."
+    except Exception as e:
+        return f"⚠️ Error al consultar el clima: {e}"
 
 
 # Instancia global

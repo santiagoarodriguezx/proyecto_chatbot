@@ -1,10 +1,31 @@
-fastapi
-uvicorn
-python-dotenv
-google-generativeai
-requests
-supabase
-langchain
-langchain-google-genai
-langgraph
-pydantic
+# FastAPI and ASGI Server
+fastapi==0.115.6
+uvicorn==0.32.1
+pydantic==2.10.3
+pydantic-settings==2.6.1
+
+# LangChain and AI
+langchain==0.3.13
+langchain-google-genai==2.0.8
+langchain-community==0.3.13
+google-generativeai==0.8.3
+
+# Database
+supabase==2.10.0
+
+# Google Search
+google-search-results==2.4.2
+
+# Environment and Utilities
+python-dotenv==1.0.1
+requests==2.32.3
+
+# Security
+passlib[bcrypt]==1.7.4
+python-jose[cryptography]==3.3.0
+
+# API Documentation
+scalar-fastapi==1.0.3
+
+# Additional utilities
+python-multipart==0.0.12

@@ -1,13 +1,13 @@
-from message_processor import message_processor
-from src.api.models.models import EvolutionWebhook
+
+from app.schemas.models import EvolutionWebhook
 from typing import Dict, Any
 import logging
 from datetime import datetime
-
+from app.services.message_service import message_processor
 # Import opcional del cliente Supabase. Si la dependencia o el archivo no existen,
 # dejamos `insert_row` como None para no romper la aplicación.
 try:
-    from supabase_client import insert_row
+    from app.services.database import insert_row
 except Exception:
     insert_row = None
 
