@@ -4,7 +4,7 @@ Rutas de analytics
 from fastapi import APIRouter, HTTPException
 from datetime import datetime, timedelta
 from app.schemas.models import MessageResponse
-from app.services.database import _client
+from app.services.supabase_service import supabase_service
 import logging
 
 logger = logging.getLogger(__name__)
@@ -14,16 +14,20 @@ router = APIRouter()
 @router.get("/summary", response_model=MessageResponse)
 def get_analytics_summary(days: int = 7):
     """Resumen de analytics"""
+    if not supabase_service.is_available():
+        raise HTTPException(status_code=503, detail="Supabase no disponible")
+
     try:
         start_date = (datetime.now() - timedelta(days=days)).isoformat()
+        client = supabase_service.client
 
-        messages = _client.table("message_logs").select(
+        messages = client.table("message_logs").select(
             "*", count="exact").gte("created_at", start_date).execute()
-        incoming = _client.table("message_logs").select(
+        incoming = client.table("message_logs").select(
             "*", count="exact").eq("direction", "incoming").gte("created_at", start_date).execute()
-        outgoing = _client.table("message_logs").select(
+        outgoing = client.table("message_logs").select(
             "*", count="exact").eq("direction", "outgoing").gte("created_at", start_date).execute()
-        unique_users = _client.table("message_logs").select(
+        unique_users = client.table("message_logs").select(
             "phone_number").gte("created_at", start_date).execute()
         unique_count = len(set(m["phone_number"] for m in unique_users.data))
 

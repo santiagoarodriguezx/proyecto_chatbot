@@ -1,111 +1,29 @@
 """
-Message Processor con LangChain, Memoria y Búsqueda en Google
-Procesador que usa ConversationChain con herramientas de búsqueda
+Message Processor con LangChain, Memoria y Busqueda en Google
+Procesador que usa ConversationChain con herramientas de busqueda
 """
 
 import os
-import requests
+import time
 from dotenv import load_dotenv
 from typing import Optional
 
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.agents import AgentExecutor, create_tool_calling_agent
-from langchain.memory import ConversationBufferWindowMemory
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.tools import Tool
-from langchain_community.utilities import GoogleSerperAPIWrapper
+from app.core.ia_service import ia_service
+from app.services.supabase_service import supabase_service
+from app.services.evolution_service import evolution_service
 
 load_dotenv()
 
 
 class MessageProcessor:
-    """Procesador de mensajes con LangChain, memoria y búsqueda en Google"""
+    """Procesador de mensajes con LangChain, memoria y busqueda en Google"""
 
     def __init__(self):
-        """Inicializar procesador con LangChain y herramientas"""
-        self.evolution_url = os.getenv("EVOLUTION_API_URL")
-        self.api_key = os.getenv("EVOLUTION_API_KEY")
-        self.instance = os.getenv("EVOLUTION_INSTANCE", "ia-whatsapp")
-
-        # Inicializar modelo de Google AI
-        self.llm = ChatGoogleGenerativeAI(
-            model="gemini-flash-lite-latest",
-            temperature=1.0,
-            google_api_key=os.getenv("GOOGLE_API_KEY")
-        )
-
-        # Memoria que guarda últimas 10 interacciones
-        self.memory = ConversationBufferWindowMemory(
-            k=10,
-            return_messages=True,
-            memory_key="chat_history"
-        )
-
-        # Cargar prompt del sistema
-        self.system_prompt = self._load_system_prompt()
-
-        # Crear herramientas
-        self.tools = self._create_tools()
-
-        # Crear agente con herramientas
-        self.agent = self._create_agent()
-
-    def _load_system_prompt(self) -> str:
-        """Cargar prompt del sistema"""
-        return """Eres un asistente virtual inteligente y servicial. 
-Tu objetivo es ayudar a los usuarios de la mejor manera posible.
-Cuando necesites información actualizada o datos que no conoces, usa la herramienta de búsqueda de Google o de weather para climas.
-Sé conciso, amigable y profesional en tus respuestas."""
-
-    def _create_tools(self) -> list:
-        """Crear herramientas disponibles para el agente"""
-        tools = []
-
-        # Herramienta de búsqueda en Google (usando Serper API)
-        serper_api_key = os.getenv("SERPER_API_KEY")
-        if serper_api_key:
-            try:
-                search = GoogleSerperAPIWrapper(serper_api_key=serper_api_key)
-                google_tool = Tool(
-                    name="google_search",
-                    description="Busca información actual en Google. Útil para responder preguntas sobre eventos recientes, noticias, datos actualizados o información que no conoces.",
-                    func=search.run
-                )
-                weather_tool = Tool(
-                    name="weather",
-                    description="Consulta el clima actual de cualquier ciudad. Útil para saber temperatura, humedad y condiciones meteorológicas.",
-                    func=get_weather
-                )
-
-                tools.append(google_tool, weather_tool)
-                print("✅ Herramienta de búsqueda Google activada")
-            except Exception as e:
-                print(f"⚠️ No se pudo activar búsqueda Google: {e}")
-        else:
-            print("⚠️ SERPER_API_KEY no encontrada - búsqueda Google desactivada")
-
-        return tools
-
-    def _create_agent(self) -> AgentExecutor:
-        """Crear agente con herramientas y memoria"""
-
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", self.system_prompt),
-            MessagesPlaceholder(variable_name="chat_history"),
-            ("human", "{input}"),
-            MessagesPlaceholder(variable_name="agent_scratchpad"),
-        ])
-
-        agent = create_tool_calling_agent(self.llm, self.tools, prompt)
-
-        return AgentExecutor(
-            agent=agent,
-            tools=self.tools,
-            memory=self.memory,
-            verbose=True,
-            handle_parsing_errors=True,
-            max_iterations=3
-        )
+        """Inicializar procesador con servicios"""
+        # Usar servicios modularizados
+        self.ia_service = ia_service
+        self.supabase_service = supabase_service
+        self.evolution_service = evolution_service
 
     def process_and_reply(self, message_text: str, from_number: str) -> None:
         """
@@ -113,77 +31,87 @@ Sé conciso, amigable y profesional en tus respuestas."""
 
         Args:
             message_text: Texto del mensaje
-            from_number: Número del remitente
+            from_number: Numero del remitente
         """
+        start_time = time.time()
+        incoming_message_log = None
+
         try:
             print(f"📨 Mensaje de {from_number}: {message_text}")
 
-            # Generar respuesta con agente (puede usar herramientas)
-            result = self.agent.invoke({"input": message_text})
-            response = result.get(
-                "output", "Lo siento, no pude generar una respuesta.")
+            # 1. Gestionar conversacion
+            conversation = self.supabase_service.get_or_create_conversation(
+                from_number)
 
-            print(f"🤖 Respuesta: {response[:100]}...")
+            # 2. Guardar mensaje entrante
+            incoming_message_log = self.supabase_service.save_message_log(
+                phone_number=from_number,
+                message_text=message_text,
+                direction="incoming",
+                status="received"
+            )
 
-            # Guardar en Supabase
-            self._save_to_supabase(from_number, response)
+            # 3. Generar respuesta con servicio de IA
+            response = self.ia_service.generate_response(message_text)
 
-            # Enviar a Evolution
-            self.send_to_evolution(from_number, response)
+            # Calcular tiempo de respuesta
+            response_time_ms = int((time.time() - start_time) * 1000)
+
+            print(f"🤖 Respuesta ({response_time_ms}ms): {response[:100]}...")
+            # 4. enviar mensahje por evolution api
+            result = self.evolution_service.send_text_message(
+                from_number, response)
+
+            # 5. Guardar mensaje saliente
+            outgoing_message_log = self.supabase_service.save_message_log(
+                phone_number=from_number,
+                message_text=response,
+                direction="outgoing",
+                status="pending"
+            )
+
+            # 6. Guardar respuesta de IA con metricas
+            self.supabase_service.save_ai_response(
+                message_log_id=incoming_message_log["id"] if incoming_message_log else None,
+                response_text=response,
+                prompt_used=self.ia_service.system_prompt,
+                model_used="gemini-flash-lite-latest",
+                response_time_ms=response_time_ms
+            )
+
+            # 7. Actualizar estado del mensaje saliente
+            if result.get("success"):
+                if outgoing_message_log:
+                    # Podriamos actualizar el status a "sent" aqui
+                    pass
+            else:
+                print(f"⚠️ Error enviando mensaje: {result.get('error')}")
 
         except Exception as e:
             print(f"❌ Error: {str(e)}")
             error_msg = "Lo siento, hubo un error procesando tu mensaje."
-            self.send_to_evolution(from_number, error_msg)
 
-    def _save_to_supabase(self, from_number: str, response: str) -> None:
-        """Guardar mensaje en Supabase (implementación futura)"""
-        # TODO: Implementar guardado en Supabase
-        pass
+            # Guardar error en AI response
+            if incoming_message_log:
+                self.supabase_service.save_ai_response(
+                    message_log_id=incoming_message_log["id"],
+                    response_text=error_msg,
+                    error_message=str(e),
+                    response_time_ms=int((time.time() - start_time) * 1000)
+                )
 
-    def send_to_evolution(self, number: str, text: str) -> None:
-        """Enviar mensaje a Evolution API"""
-        try:
-            url = f"{self.evolution_url}/message/sendText/{self.instance}"
-            headers = {
-                "Content-Type": "application/json",
-                "apikey": self.api_key
-            }
-            data = {
-                "number": number,
-                "text": text
-            }
+    def get_conversation_history(self, phone_number: str, limit: int = 10):
+        """
+        Obtener historial de conversacion
 
-            response = requests.post(
-                url, json=data, headers=headers, timeout=10)
+        Args:
+            phone_number: Numero de telefono
+            limit: Cantidad de mensajes
 
-            if response.status_code == 201:
-                print(f"✅ Mensaje enviado a {number}")
-            else:
-                print(f"⚠️ Error enviando: {response.status_code}")
-
-        except Exception as e:
-            print(f"❌ Error enviando a Evolution: {str(e)}")
-
-
-def get_weather(city: str) -> str:
-    api_key = os.getenv("OPENWEATHER_API_KEY")
-    if not api_key:
-        return "⚠️ API key de OpenWeatherMap no encontrada."
-
-    url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric&lang=es"
-    try:
-        response = requests.get(url)
-        data = response.json()
-        if data.get("cod") != 200:
-            return f"⚠️ No se pudo encontrar el clima para {city}."
-
-        weather = data["weather"][0]["description"]
-        temp = data["main"]["temp"]
-        humidity = data["main"]["humidity"]
-        return f"El clima en {city} es {weather} con {temp}°C y humedad de {humidity}%."
-    except Exception as e:
-        return f"⚠️ Error al consultar el clima: {e}"
+        Returns:
+            Lista de mensajes
+        """
+        return self.supabase_service.get_conversation_history(phone_number, limit)
 
 
 # Instancia global

@@ -3,7 +3,7 @@ Rutas de conversaciones
 """
 from fastapi import APIRouter, HTTPException
 from app.schemas.models import MessageResponse
-from app.services.database import _client
+from app.services.supabase_service import supabase_service
 from app.services.message_service import message_processor
 import logging
 
@@ -14,8 +14,12 @@ router = APIRouter()
 @router.get("/", response_model=MessageResponse)
 def list_conversations(limit: int = 20, active_only: bool = False):
     """Listar conversaciones"""
+    if not supabase_service.is_available():
+        raise HTTPException(status_code=503, detail="Supabase no disponible")
+
     try:
-        query = _client.table("conversations").select("*")
+        client = supabase_service.client
+        query = client.table("conversations").select("*")
         if active_only:
             query = query.eq("current_state", "active")
         result = query.order(
@@ -29,12 +33,16 @@ def list_conversations(limit: int = 20, active_only: bool = False):
 @router.get("/{phone_number}", response_model=MessageResponse)
 def get_conversation_history(phone_number: str, limit: int = 50):
     """Obtener historial de conversación"""
+    if not supabase_service.is_available():
+        raise HTTPException(status_code=503, detail="Supabase no disponible")
+
     try:
-        messages = _client.table("message_logs").select(
-            "*").eq("phone_number", phone_number).order("created_at", desc=True).limit(limit).execute()
-        conversation = _client.table("conversations").select(
+        messages = supabase_service.get_conversation_history(
+            phone_number, limit)
+        client = supabase_service.client
+        conversation = client.table("conversations").select(
             "*").eq("phone_number", phone_number).single().execute()
-        return MessageResponse(success=True, message="Historial recuperado", data={"phone_number": phone_number, "message_count": len(messages.data), "messages": messages.data, "conversation_info": conversation.data if conversation.data else None})
+        return MessageResponse(success=True, message="Historial recuperado", data={"phone_number": phone_number, "message_count": len(messages), "messages": messages, "conversation_info": conversation.data if conversation.data else None})
     except Exception as e:
         logger.error(f"Error obteniendo historial: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -43,25 +51,16 @@ def get_conversation_history(phone_number: str, limit: int = 50):
 @router.delete("/{phone_number}")
 def delete_conversation(phone_number: str):
     """Eliminar conversación"""
+    if not supabase_service.is_available():
+        raise HTTPException(status_code=503, detail="Supabase no disponible")
+
     try:
-        _client.table("message_logs").delete().eq(
+        client = supabase_service.client
+        client.table("message_logs").delete().eq(
             "phone_number", phone_number).execute()
-        _client.table("conversations").delete().eq(
+        client.table("conversations").delete().eq(
             "phone_number", phone_number).execute()
         return {"success": True, "message": f"Conversación {phone_number} eliminada"}
     except Exception as e:
         logger.error(f"Error eliminando conversación: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/memory/reset/{phone_number}")
-def reset_memory(phone_number: str):
-    """Resetear memoria de conversación"""
-    try:
-        message_processor.memory.clear()
-        _client.table("conversations").update({"context": {}, "current_state": "reset"}).eq(
-            "phone_number", phone_number).execute()
-        return {"success": True, "message": f"Memoria reseteada para {phone_number}"}
-    except Exception as e:
-        logger.error(f"Error reseteando memoria: {e}")
         raise HTTPException(status_code=500, detail=str(e))
