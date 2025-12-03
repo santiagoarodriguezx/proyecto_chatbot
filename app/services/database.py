@@ -82,3 +82,16 @@ def fetch_prompt_by_name(name: str) -> Dict[str, Any]:
     )
     data = getattr(res, "data", [])
     return data[0] if data else None
+
+
+def save_message_to_supabase(phone_number: str, message_text: str, direction: str = "outgoing", status: str = "sent") -> None:
+    """Guardar mensaje en Supabase"""
+    try:
+        insert_row("message_logs", {
+            "phone_number": phone_number,
+            "message_text": message_text,
+            "direction": direction,
+            "status": status
+        })
+    except Exception as e:
+        print(f"⚠️ No se pudo guardar en Supabase: {e}")
